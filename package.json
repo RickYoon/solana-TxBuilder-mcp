@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc",
     "start": "ts-node index.ts",
+    "test": "mocha --require ts-node/register tests/**/*.test.ts",
     "generate-config": "echo '{\"mcpServers\":{\"solana-dev\":{\"command\":\"ts-node\",\"args\":[\"'$(pwd)'/index.ts\"]}}}'",
     "generate-config:js": "echo '{\"mcpServers\":{\"solana-dev\":{\"command\":\"node\",\"args\":[\"'$(pwd)'/dist/index.js\"]}}}'"
   },
@@ -19,6 +20,18 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@types/node": "^22.13.10"
+    "@types/chai": "5.2.0",
+    "@types/mocha": "10.0.10",
+    "@types/node": "^22.13.10",
+    "@typescript-eslint/eslint-plugin": "8.26.1",
+    "@typescript-eslint/parser": "8.26.1",
+    "chai": "5.2.0",
+    "eslint": "9.22.0",
+    "eslint-config-prettier": "10.1.1",
+    "mocha": "11.1.0",
+    "prettier": "3.5.3",
+    "ts-mocha": "11.1.0",
+    "ts-node": "10.9.2",
+    "typescript": "5.8.2"
   }
 }

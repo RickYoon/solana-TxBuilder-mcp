@@ -1,13 +1,139 @@
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { Connection, PublicKey, LAMPORTS_PER_SOL, clusterApiUrl } from "@solana/web3.js";
+import { 
+    Connection, 
+    PublicKey, 
+    LAMPORTS_PER_SOL, 
+    clusterApiUrl,
+    Keypair,
+    Transaction,
+    SystemProgram
+} from "@solana/web3.js";
 
 // Create an MCP server
 const server = new McpServer({
-    name: "Solana RPC Tools",
+    name: "Sol-TxBuilder-MCP",
     version: "1.0.0",
 });
+
+// Helper function to get cluster URL
+const getClusterUrl = (cluster: string) => {
+    switch (cluster) {
+        case "mainnet-beta":
+        case "testnet":
+        case "devnet":
+            return clusterApiUrl(cluster);
+        default:
+            throw new Error("Invalid cluster");
+    }
+};
+
+// 1. Build Transaction
+server.tool(
+    "buildTransaction",
+    "Build a Solana transaction",
+    {
+        instructions: z.array(z.object({
+            type: z.string(),
+            params: z.object({
+                from: z.string(),
+                to: z.string(),
+                amount: z.number()
+            })
+        })),
+        cluster: z.string(),
+        feePayer: z.string(),
+        signerSecretKey: z.string()
+    },
+    async ({ instructions, cluster, feePayer, signerSecretKey }) => {
+        try {
+            const connection = new Connection(getClusterUrl(cluster));
+            const transaction = new Transaction();
+            
+            // Add instructions
+            for (const inst of instructions) {
+                if (inst.type === "transfer") {
+                    const instruction = SystemProgram.transfer({
+                        fromPubkey: new PublicKey(inst.params.from),
+                        toPubkey: new PublicKey(inst.params.to),
+                        lamports: LAMPORTS_PER_SOL * inst.params.amount
+                    });
+                    transaction.add(instruction);
+                }
+            }
+
+            // Set recent blockhash
+            const { blockhash } = await connection.getLatestBlockhash();
+            transaction.recentBlockhash = blockhash;
+            transaction.feePayer = new PublicKey(feePayer);
+
+            // Sign the transaction
+            const signer = Keypair.fromSecretKey(
+                Buffer.from(signerSecretKey, 'base64')
+            );
+            transaction.sign(signer);
+
+            return {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify({
+                        transactionBase64: transaction.serialize().toString('base64')
+                    })
+                }]
+            };
+        } catch (error) {
+            return {
+                content: [{
+                    type: "text",
+                    text: `Error: ${(error as Error).message}`
+                }]
+            };
+        }
+    }
+);
+
+// 2. Sign and Send Transaction
+server.tool(
+    "signAndSendTransaction",
+    "Sign and send a Solana transaction",
+    {
+        transactionBase64: z.string(),
+        secretKey: z.string(),
+        cluster: z.string()
+    },
+    async ({ transactionBase64, secretKey, cluster }) => {
+        try {
+            const connection = new Connection(getClusterUrl(cluster));
+            const transaction = Transaction.from(
+                Buffer.from(transactionBase64, 'base64')
+            );
+            
+            const signer = Keypair.fromSecretKey(
+                Buffer.from(secretKey, 'base64')
+            );
+            
+            transaction.sign(signer);
+            const signature = await connection.sendRawTransaction(
+                transaction.serialize()
+            );
+            
+            return {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify({ signature })
+                }]
+            };
+        } catch (error) {
+            return {
+                content: [{
+                    type: "text",
+                    text: `Error: ${(error as Error).message}`
+                }]
+            };
+        }
+    }
+);
 
 // Initialize Solana connection
 const connection = new Connection(clusterApiUrl("mainnet-beta"), "confirmed");
